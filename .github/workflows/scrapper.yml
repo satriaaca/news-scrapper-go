@@ -1,0 +1,42 @@
+name: Tabanan News Scraper (Go)
+
+on:
+  schedule:
+    # Berjalan otomatis setiap hari jam 08:00 UTC (16:00 WITA)
+    - cron: '0 8 * * *'
+  workflow_dispatch: # Memungkinkan eksekusi manual via tombol "Run workflow" di GitHub
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go Environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22' # Sesuaikan dengan versi di go.mod Anda
+          cache-dependency-path: go.sum
+
+      - name: Install Dependencies
+        run: |
+          go mod download
+
+      - name: Tahap 1 - Fetch RSS ke JSON
+        run: |
+          go run 1_fetch_rss.go
+
+      - name: Tahap 2 - Process & Scrape (Chromedp)
+        id: scrape_step
+        run: |
+          # ubuntu-latest di GitHub Actions sudah dilengkapi Google Chrome bawaan,
+          # sehingga chromedp bisa langsung berjalan secara headless.
+          go run 2_process_news.go
+
+      - name: Simpan CSV sebagai Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tabanan-news-data
+          path: output/**/*.csv
+          retention-days: 7
