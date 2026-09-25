@@ -4,29 +4,56 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
+	"strings"
 
 	"github.com/mmcdole/gofeed"
 )
 
-const (
-	RssURL     = "https://news.google.com/rss/search?q=Tabanan+when:1d&hl=id&gl=ID&ceid=ID:id"
-	OutputJSON = "rss_entries.json"
-)
+const OutputJSON = "rss_entries.json"
 
-// Struktur sederhana untuk disimpan di JSON
+var whitelistDomains = []string{
+	"kompas.com",
+	"rri.co.id",
+	"tbinterpol.com",
+	"jejakkasus.info",
+	"bisnisbali.com",
+	"balipost.com",
+	"mediapelangi.com",
+	"suryaindonesia.net",
+	"kabarnusa.com",
+	"radarnusantara.com",
+	"baliportalnews.com",
+	"nusabali.com",
+}
+
 type RssEntry struct {
 	Title           string `json:"title"`
 	Link            string `json:"link"`
-	PublishedParsed string `json:"published_parsed"` // Disimpan sebagai string ISO 8601
+	PublishedParsed string `json:"published_parsed"`
 }
 
 func main() {
-	fmt.Println("TABANAN NEWS RSS FETCHER (Tahap 1)")
-	fmt.Printf("[RSS] Fetching: %s\n", RssURL)
+	fmt.Println("TABANAN NEWS RSS FETCHER (Tahap 1 - Whitelist Mode)")
 
+	// 1. Rangkai query dengan operator OR dan site:
+	// Hasil: Tabanan (site:kompas.com OR site:rri.co.id OR ...)
+	var siteQueries []string
+	for _, domain := range whitelistDomains {
+		siteQueries = append(siteQueries, fmt.Sprintf("site:%s", domain))
+	}
+	
+	rawQuery := fmt.Sprintf("Tabanan (%s)", strings.Join(siteQueries, " OR "))
+	encodedQuery := url.QueryEscape(rawQuery)
+
+	// 2. Bentuk URL RSS akhir
+	rssURL := fmt.Sprintf("https://news.google.com/rss/search?q=%s+when:1d&hl=id&gl=ID&ceid=ID:id", encodedQuery)
+	fmt.Printf("[RSS] Fetching URL: %s\n", rssURL)
+
+	// 3. Ambil RSS
 	fp := gofeed.NewParser()
-	feed, err := fp.ParseURL(RssURL)
+	feed, err := fp.ParseURL(rssURL)
 	if err != nil {
 		log.Fatalf("[ERROR] Gagal parsing RSS: %v", err)
 	}
@@ -45,7 +72,7 @@ func main() {
 		})
 	}
 
-	// Simpan ke JSON
+	// 4. Simpan ke JSON
 	file, err := os.Create(OutputJSON)
 	if err != nil {
 		log.Fatalf("[ERROR] Gagal membuat file JSON: %v", err)
@@ -58,5 +85,5 @@ func main() {
 		log.Fatalf("[ERROR] Gagal menulis JSON: %v", err)
 	}
 
-	fmt.Printf("[SUKSES] Menyimpan %d artikel ke %s\n", len(entries), OutputJSON)
+	fmt.Printf("[SUKSES] Menyimpan %d artikel (Hanya dari Whitelist) ke %s\n", len(entries), OutputJSON)
 }
