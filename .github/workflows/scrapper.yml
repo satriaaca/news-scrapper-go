@@ -32,7 +32,7 @@ jobs:
         run: |
           # ubuntu-latest di GitHub Actions sudah dilengkapi Google Chrome bawaan,
           # sehingga chromedp bisa langsung berjalan secara headless.
-          go run 2_process_news.go
+          go run main.go
 
       - name: Simpan CSV sebagai Artifact
         uses: actions/upload-artifact@v4
