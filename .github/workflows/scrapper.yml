@@ -4,7 +4,14 @@ on:
   schedule:
     # Berjalan otomatis setiap hari jam 08:00 UTC (16:00 WITA)
     - cron: '0 8 * * *'
-  workflow_dispatch: # Memungkinkan eksekusi manual via tombol "Run workflow" di GitHub
+  workflow_dispatch:
+
+permissions:
+  contents: write # wajib agar GITHUB_TOKEN boleh push ke repo
+
+concurrency:
+  group: tabanan-scraper
+  cancel-in-progress: false
 
 jobs:
   scrape:
@@ -16,27 +23,42 @@ jobs:
       - name: Setup Go Environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22' # Sesuaikan dengan versi di go.mod Anda
+          go-version: '1.22'
           cache-dependency-path: go.sum
 
       - name: Install Dependencies
-        run: |
-          go mod download
+        run: go mod download
 
       - name: Tahap 1 - Fetch RSS ke JSON
-        run: |
-          go run 1_fetch_rss.go
+        run: go run 1_fetch_rss.go
 
       - name: Tahap 2 - Process & Scrape (Chromedp)
         id: scrape_step
-        run: |
-          # ubuntu-latest di GitHub Actions sudah dilengkapi Google Chrome bawaan,
-          # sehingga chromedp bisa langsung berjalan secara headless.
-          go run main.go
+        run: go run main.go
 
       - name: Simpan CSV sebagai Artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: tabanan-news-data
           path: output/**/*.csv
           retention-days: 7
+
+      - name: Commit & Push hasil ke repository
+        if: always() # tetap push walau tahap scrape ada yang gagal
+        run: |
+          mkdir -p output/success output/failed
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add output/success output/failed
+
+          if git diff --cached --quiet; then
+            echo "Tidak ada perubahan untuk di-commit."
+            exit 0
+          fi
+
+          git commit -m "chore: update hasil scrape $(date -u +'%Y-%m-%d %H:%M UTC') [skip ci]"
+          git pull --rebase origin ${{ github.ref_name }}
+          git push origin HEAD:${{ github.ref_name }}
